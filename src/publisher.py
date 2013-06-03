@@ -4,8 +4,8 @@ class Publisher:
 
     def __init__(self):
         self._context = zmq.Context(1)
-        self._socket_block = context.socket(zmq.PUB)
-        self._socket_tx = context.socket(zmq.PUB)
+        self._socket_block = self._context.socket(zmq.PUB)
+        self._socket_tx = self._context.socket(zmq.PUB)
 
     def start(self, config):
         bind_addr = "tcp://*:"

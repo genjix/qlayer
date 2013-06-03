@@ -1,4 +1,5 @@
 import bitcoin
+import publisher
 import sys
 from future import Future
 
@@ -24,6 +25,8 @@ class FullNode:
 				                             self._poller,
 				                             self._txpool)
         self._session = bitcoin.session(self._net_pool, pars)
+        # Publisher
+        self._publish = publisher.Publisher()
 
     def start(self, config):
         self._protocol.subscribe_channel(self._new_channel)
@@ -53,7 +56,8 @@ class FullNode:
         self._session.stop(lambda ec: None)
         self._net_pool.stop()
         self._disk_pool.stop()
-        self._mem_pool.join()
+        self._mem_pool.stop()
+        self._net_pool.join()
         self._disk_pool.join()
         self._mem_pool.join()
         self._chain.stop()

@@ -7,7 +7,7 @@ def main():
         "service-port": 8777,
         "block-publish-port": 8778,
         "tx-publish-port": 8779,
-        "database": "/home/stable/libbitcoin/examples/database",
+        "database": "/home/stable/database",
         "stop-secret": "surfing2"
     }
     # Load config here.
