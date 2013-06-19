@@ -127,11 +127,24 @@ class QueryCacheTable:
                 WHERE
                     output_point_hash=decode(%s, 'hex') AND
                     output_point_index=%s
-                """, (tx_hash, i, prevout.hash, prevout.index, confirmed))
+            """, (tx_hash, i, prevout.hash, prevout.index, confirmed))
+            self._cursor.execute("""
+                UPDATE queue
+                SET last_update_time=now()
+                WHERE
+                    address=(
+                        SELECT address
+                        FROM history
+                        WHERE
+                            output_point_hash=decode(%s, 'hex') AND
+                            output_point_index=%s
+                    )
+            """)
         for i, output in enumerate(tx.outputs):
             payaddr = bitcoin.payment_address()
             if not bitcoin.extract(payaddr, output.output_script):
                 continue
+            addr = payaddr.encoded()
             # If payment exists, then this will update it to be confirmed.
             if confirmed:
                 self._cursor.execute("""
@@ -158,5 +171,10 @@ class QueryCacheTable:
                         output_point_index=%s
                 )
             """, (addr, tx_hash, i, output.value, confirmed, tx_hash, i))
+            self._cursor.execute("""
+                UPDATE queue
+                SET last_update_time=now()
+                WHERE address=%s
+            """, (addr,))
         self._dbconn.commit()
 

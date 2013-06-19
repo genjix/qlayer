@@ -12,7 +12,7 @@ class Publisher:
         bind_addr = "tcp://*:"
         self._socket_block.bind("tcp://*:%s" % config["block-publish-port"])
         self._socket_tx.bind("tcp://*:%s" % config["tx-publish-port"])
-        def publish_blk(ec, fork, added, removed):
+        def publish_blk(ec, fork_point, added, removed):
             if ec:
                 return
             for i, blk in enumerate(added):
