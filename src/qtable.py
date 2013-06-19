@@ -1,5 +1,6 @@
 import bitcoin
 import psycopg2
+import sys
 from decimal import Decimal as D
 
 class QueryCacheTable:
@@ -8,6 +9,7 @@ class QueryCacheTable:
         self._dbconn = psycopg2.connect("host='localhost' dbname='bccache' user='genjix' password='surfing2'")
         self._cursor = self._dbconn.cursor()
         self._chain = chain
+        self._latest_blk_hash = None
 
     def update(self):
         self._cursor.execute("""
@@ -15,26 +17,33 @@ class QueryCacheTable:
         """)
         results = self._cursor.fetchall()
         for addr, in results:
-            payaddr = bitcoin.payment_address()
-            if not payaddr.set_encoded(addr):
-                print >> sys.stderr, "Ignoring invalid Bitcoin address:", addr
-                continue
-            bitcoin.fetch_history(self._chain, payaddr,
-                lambda ec, inpoints, outpoints: \
-                    self._history_fetched(ec, inpoints, outpoints, addr))
-            print addr
+            self._process(addr)
+
+    def _process(self, addr):
+        payaddr = bitcoin.payment_address()
+        if not payaddr.set_encoded(addr):
+            print >> sys.stderr, "Ignoring invalid Bitcoin address:", addr
+            print >> sys.stderr, "Reason:", str(ec)
+            return
+        bitcoin.fetch_history(self._chain, payaddr,
+            lambda ec, outpoints, inpoints: \
+                self._history_fetched(ec, outpoints, inpoints,
+                                      addr, self._latest_blk_hash))
     
-    def _history_fetched(self, ec, inpoints, outpoints, addr):
+    def _history_fetched(self, ec, outpoints, inpoints, addr, blk_hash):
         if ec:
-            print >> sys.stderr, "History failed for ", addr
+            print >> sys.stderr, "History failed for", addr
+            print >> sys.stderr, "Reason:", str(ec)
             return
         bitcoin.fetch_output_values(self._chain, outpoints,
             lambda ec, values: \
-                self._values_fetched(ec, values, inpoints, outpoints, addr))
+                self._values_fetched(ec, values, outpoints, inpoints,
+                                     addr, blk_hash))
 
-    def _values_fetched(self, ec, values, inpoints, outpoints, addr):
+    def _values_fetched(self, ec, values, outpoints, inpoints, addr, blk_hash):
         if ec:
-            print >> sys.stderr, "Values failed for ", addr
+            print >> sys.stderr, "Values failed for", addr
+            print >> sys.stderr, "Reason:", str(ec)
             return
         for outpoint, value, inpoint in zip(outpoints, values, inpoints):
             value = D(value) / 10**8
@@ -68,6 +77,11 @@ class QueryCacheTable:
                 WHERE address=%s
             """, (addr,))
             print addr, outpoint, value, inpoint
+        if blk_hash != self._latest_blk_hash:
+            print >> sys.stderr, "Retrying", addr
+            self._dbconn.rollback()
+            self._process(addr)
+            return
         self._dbconn.commit()
 
     def examine_blk(self, blk):
@@ -76,19 +90,23 @@ class QueryCacheTable:
     def examine_tx(self, tx):
         pass
 
-def blockchain_started(ec, table):
+def blockchain_started(ec):
     if ec:
         print >> sys.stderr, str(ec)
         return
-    table.update()
 
 def main():
+    import time
     pool = bitcoin.threadpool(1)
     chain = bitcoin.leveldb_blockchain(pool)
     table = QueryCacheTable(chain)
-    chain.start("database",
-        lambda ec: blockchain_started(ec, table))
-    raw_input()
+    chain.start("database", blockchain_started)
+    try:
+        while True:
+            table.update()
+            time.sleep(1)
+    except KeyboardInterrupt:
+        pass
     pool.stop()
     pool.join()
     chain.stop()
