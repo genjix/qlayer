@@ -1,7 +1,19 @@
 import bitcoin
-import publisher
 import sys
 from future import Future
+
+class Subscriber:
+
+    def __init__(self):
+        self.handlers = []
+
+    def subscribe(self, handler):
+        self.handlers.append(handler)
+
+    def relay(self, *args):
+        notify_copy = self.handlers[:]
+        self.handlers = []
+        [handle(*args) for handle in self.handlers]
 
 class FullNode:
 
@@ -25,8 +37,10 @@ class FullNode:
 				                             self._poller,
 				                             self._txpool)
         self._session = bitcoin.session(self._net_pool, pars)
-        # Publisher
-        self._publish = publisher.Publisher()
+        self._tx_subscribe = Subscriber()
+
+    def subscribe_transaction(self, handler):
+        self._tx_subscribe.subscribe(handler)
 
     def start(self, config):
         self._protocol.subscribe_channel(self._new_channel)
@@ -46,12 +60,9 @@ class FullNode:
         if ec:
             print >> sys.stderr, "Couldn't start session:", str(ec)
             return False
-        # Ready to begin.
-        self._publish.start(config)
         return True
 
     def stop(self):
-        self._publish.stop()
         # Ignore callback from session.stop()
         self._session.stop(lambda ec: None)
         self._net_pool.stop()
@@ -74,9 +85,6 @@ class FullNode:
     @property
     def protocol(self):
         return self._protocol
-
-    def _reorganize(ec, fork_point, new_blocks, replaced_blocks):
-        pass
 
     def _new_channel(self, ec, node):
         if ec:
@@ -102,8 +110,8 @@ class FullNode:
             return
         tx_hash = bitcoin.hash_transaction(tx).encode("hex")
         print "Accepted transaction:", tx_hash
-        self._publish.send_tx(tx)
         # missing_inputs are the inputs for this transaction which
         # depend on an output from another unconfirmed transaction
         # which we have in the memory pool (and have validated ourselves).
+        self._tx_subscribe.relay(ec, tx, missing_inputs)
 

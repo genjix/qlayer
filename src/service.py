@@ -1,5 +1,4 @@
 import threading
-import time
 import sync_blockchain
 from thrift.transport import TSocket
 from thrift.transport import TTransport
@@ -85,24 +84,28 @@ class Servant(threading.Thread):
     def run(self):
         self._server.serve()
 
-def start_thrift_server(config, node):
-    handler = QueryHandler(config, node)
-    processor = QueryService.Processor(handler)
-    transport = TSocket.TServerSocket(port=config["service-port"])
-    tfactory = TTransport.TBufferedTransportFactory()
-    pfactory = TBinaryProtocol.TBinaryProtocolFactory()
+class ServiceServer:
 
-    server = TServer.TSimpleServer(processor, transport, tfactory, pfactory)
+    def start(self, config, node):
+        self.handler = QueryHandler(config, node)
+        self.processor = QueryService.Processor(self.handler)
+        self.transport = TSocket.TServerSocket(port=config["service-port"])
+        self.tfactory = TTransport.TBufferedTransportFactory()
+        self.pfactory = TBinaryProtocol.TBinaryProtocolFactory()
 
-    # You could do one of these for a multithreaded server
-    #server = TServer.TThreadedServer(processor, transport, tfactory, pfactory)
-    #server = TServer.TThreadPoolServer(processor, transport, tfactory, pfactory)
+        self.server = TServer.TSimpleServer(self.processor, self.transport,
+                                            self.tfactory, self.pfactory)
 
-    serv = Servant(server)
-    print 'Starting the server...'
-    serv.start()
-    while not handler.stopped:
-        time.sleep(1)
+        # You could do one of these for a multithreaded server
+        #server = TServer.TThreadedServer(processor, transport, tfactory, pfactory)
+        #server = TServer.TThreadPoolServer(processor, transport, tfactory, pfactory)
+
+        self.serv = Servant(self.server)
+        self.serv.start()
+
+    @property
+    def stopped(self):
+        return self.handler.stopped
 
 if __name__ == "__main__":
     config = {
