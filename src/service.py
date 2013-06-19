@@ -14,18 +14,16 @@ class QueryHandler:
 
     def __init__(self, config, node):
         self._stop_secret = config["stop-secret"]
+        self.stopped = False
         self._chain = sync_blockchain.SyncBlockchain(node.blockchain)
         self._txpool = node.transaction_pool
         self._protocol = node.protocol
-
-    def initialize(self, stop_event):
-        self._stop_event = stop_event
 
     def stop(self, secret):
         if secret != self._stop_secret:
             return False
         print "Stopping server..."
-        self._stop_event.set()
+        self.stopped = True
         return True
 
     def block_header_by_depth(self, depth):
@@ -47,7 +45,10 @@ class QueryHandler:
         pass
 
     def last_depth(self):
-        pass
+        ec, depth = self._chain.fetch_last_depth()
+        if ec:
+            raise Exception(str(ec))
+        return depth
 
     def transaction(self, hash):
         pass
@@ -59,6 +60,12 @@ class QueryHandler:
         pass
 
     def outputs(self, address):
+        pass
+
+    def history(self, address):
+        pass
+
+    def output_values(self, outpoints):
         pass
 
     def transaction_pool_transaction(self, hash):
@@ -73,7 +80,6 @@ class Servant(threading.Thread):
 
     def __init__(self, server):
         self._server = server
-        self.stop_event = threading.Event()
         super(Servant, self).__init__()
 
     def run(self):
@@ -93,10 +99,9 @@ def start_thrift_server(config, node):
     #server = TServer.TThreadPoolServer(processor, transport, tfactory, pfactory)
 
     serv = Servant(server)
-    handler.initialize(serv.stop_event)
     print 'Starting the server...'
     serv.start()
-    while not serv.stop_event.isSet():
+    while not handler.stopped:
         time.sleep(1)
 
 if __name__ == "__main__":

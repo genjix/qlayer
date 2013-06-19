@@ -78,11 +78,14 @@ class FullNode:
     def _reorganize(ec, fork_point, new_blocks, replaced_blocks):
         pass
 
-    def _new_channel(node):
+    def _new_channel(self, ec, node):
+        if ec:
+            print >> sys.stderr, "Error with new channel:", str(ec)
+            return
         node.subscribe_transaction(lambda ec, tx: self._recv_tx(ec, tx, node))
         self._protocol.subscribe_channel(self._new_channel)
 
-    def _recv_tx(ec, tx, node):
+    def _recv_tx(self, ec, tx, node):
         if ec:
             print >> sys.stderr, "Error receiving tx:", str(ec)
             return
@@ -93,11 +96,12 @@ class FullNode:
             lambda ec, missing: self._tx_validated(ec, missing, tx))
         node.subscribe_transaction(lambda ec, tx: self._recv_tx(ec, tx, node))
 
-    def _tx_validated(ec, missing_inputs, tx):
+    def _tx_validated(self, ec, missing_inputs, tx):
         if ec:
             print >> sys.stderr, "Error validating tx:", str(ec)
             return
-        print "Accepted transaction:", bitcoin.hash_transaction(tx)
+        tx_hash = bitcoin.hash_transaction(tx).encode("hex")
+        print "Accepted transaction:", tx_hash
         self._publish.send_tx(tx)
         # missing_inputs are the inputs for this transaction which
         # depend on an output from another unconfirmed transaction

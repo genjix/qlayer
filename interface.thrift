@@ -22,6 +22,7 @@ struct OutputPoint {
 
 typedef OutputPoint InputPoint
 typedef list<OutputPoint> OutputPointList
+typedef list<InputPoint> InputPointList
 
 struct TransactionInput {
   1: OutputPoint previous_output,
@@ -47,6 +48,13 @@ struct TransactionIndex {
   2: i32 offset
 }
 
+struct History {
+  1: OutputPointList outpoints
+  2: InputPointList inpoints
+}
+
+typedef list<i64> OutputValues
+
 service QueryService {
   bool stop(1:string secret)
   // blockchain methods
@@ -60,6 +68,9 @@ service QueryService {
   TransactionIndex transaction_index(1:binary hash)
   InputPoint spend(1:OutputPoint outpoint)
   OutputPointList outputs(1:string address)
+  // blockchain (composed) methods
+  History history(1:string address)
+  OutputValues output_values(1:OutputPointList outpoints)
   // transaction pool methods
   Transaction transaction_pool_transaction(1:binary hash)
   // protocol methods

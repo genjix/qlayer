@@ -4,10 +4,10 @@ import sys
 
 def main():
     config = {
-        "service-port": 8777,
-        "block-publish-port": 8778,
-        "tx-publish-port": 8779,
-        "database": "/home/stable/database",
+        "service-port": 9091,
+        "block-publish-port": 9092,
+        "tx-publish-port": 9093,
+        "database": "/home/genjix/database",
         "stop-secret": "surfing2"
     }
     # Load config here.
