@@ -1,6 +1,7 @@
 import bitcoin
 import psycopg2
 import sys
+import time
 from decimal import Decimal as D
 
 class QueryCacheTable:
@@ -9,6 +10,7 @@ class QueryCacheTable:
         self._chain = node.blockchain
         self._node = node
         self._latest_blk_hash = None
+        self._skip = {}
 
     def start(self, config):
         self._dbconn = psycopg2.connect(
@@ -21,7 +23,7 @@ class QueryCacheTable:
                 return
             for i, blk in enumerate(added):
                 depth = fork_point + 1 + i
-                self.examine_blk(blk)
+                self.examine_blk(depth, blk)
             self._node.blockchain.subscribe_reorganize(examine_blocks)
         self._node.blockchain.subscribe_reorganize(examine_blocks)
         def examine_unconfirm_tx(ec, tx, missing):
@@ -38,9 +40,14 @@ class QueryCacheTable:
         """)
         results = self._cursor.fetchall()
         for addr, in results:
+            if addr in self._skip:
+                # For now don't bother with query timeout.
+                continue
+            self._skip[addr] = time.time()
             self._process(addr)
 
     def _process(self, addr):
+        print "Processing address:", addr
         payaddr = bitcoin.payment_address()
         if not payaddr.set_encoded(addr):
             print >> sys.stderr, "Ignoring invalid Bitcoin address:", addr
@@ -97,7 +104,6 @@ class QueryCacheTable:
                 SET last_update_time=now()
                 WHERE address=%s
             """, (addr,))
-            print addr, outpoint, value, inpoint
         if blk_hash != self._latest_blk_hash:
             print >> sys.stderr, "Retrying", addr
             self._dbconn.rollback()
@@ -105,10 +111,14 @@ class QueryCacheTable:
             return
         self._dbconn.commit()
 
-    def examine_blk(self, blk):
+    def examine_blk(self, depth, blk):
         self._latest_block_hash = bitcoin.hash_block_header(blk)
         for tx in blk.transactions:
             self._check(tx, True)
+        self._cursor.execute("""
+            INSERT INTO blocks (depth, hash)
+            VALUES (%s, %s)
+        """, (depth, self._latest_block_hash))
 
     def examine_tx(self, tx):
         self._check(tx, False)

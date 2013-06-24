@@ -1,18 +1,22 @@
 import bitcoin
 import sys
+import threading
 from future import Future
 
 class Subscriber:
 
     def __init__(self):
         self.handlers = []
+        self.lock = threading.Lock()
 
     def subscribe(self, handler):
-        self.handlers.append(handler)
+        with self.lock:
+            self.handlers.append(handler)
 
     def relay(self, *args):
-        notify_copy = self.handlers[:]
-        self.handlers = []
+        with self.lock:
+            notify_copy = self.handlers[:]
+            self.handlers = []
         [handle(*args) for handle in self.handlers]
 
 class FullNode:

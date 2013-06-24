@@ -36,7 +36,7 @@ class Publisher:
 
     def send_blk(self, depth, blk):
         # We could use send_json or send_pyobj instead.
-        self._socket_block.send_multipart([depth, "rawblock"])
+        self._socket_block.send_multipart(["depth", "rawblock"])
 
     def send_tx(self, tx):
         self._socket_tx.send("rawtx")
